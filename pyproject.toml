@@ -1,0 +1,20 @@
+[project]
+name = "genetic"
+version = "0.1.0"
+description = "GenRoute: demo de algoritmo genético para rutas de bus en una ciudad dinámica (FastAPI + Pygame)"
+readme = "README.md"
+authors = [
+    { name = "xxdextroxx", email = "jesnaruto37@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]>=0.142.2",
+    "pygame>=2.6.1",
+]
+
+[project.scripts]
+genetic = "genetic:main"
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"

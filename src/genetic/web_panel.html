@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GenRoute · Control</title>
+<style>
+  :root { --bg:#090b16; --panel:#101424; --hi:#181e34; --border:#2c365c; --text:#e2e8ff; --dim:#828eb8;
+          --gold:#ffe228; --cyan:#00d2ff; --violet:#be50ff; --red:#ff3854; --green:#32f082; --amber:#ffbe28; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.4 "Segoe UI",system-ui,sans-serif; }
+  .wrap { max-width:1100px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { margin:0; font-size:26px; letter-spacing:.3px; }
+  .sub { color:var(--dim); margin:2px 0 22px; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:18px; }
+  .card, .box { background:var(--panel); border:1px solid var(--border); border-radius:12px; }
+  .card { padding:12px 14px; border-left:3px solid var(--c,var(--text)); }
+  .card .l { font-size:11px; font-weight:600; letter-spacing:.8px; color:var(--dim); }
+  .card .v { font-size:24px; font-weight:700; color:var(--c,var(--text)); font-variant-numeric:tabular-nums; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:14px; }
+  .box { padding:16px 18px; }
+  .box h2 { margin:0 0 12px; font-size:12px; letter-spacing:1px; color:var(--dim); }
+  label { display:flex; justify-content:space-between; font-size:13px; color:var(--dim); margin:10px 0 4px; }
+  input[type=number], select { width:100%; background:var(--hi); color:var(--text); border:1px solid var(--border);
+          border-radius:8px; padding:8px 10px; font:inherit; }
+  input[type=range] { width:100%; accent-color:var(--cyan); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+  .row > * { flex:1; }
+  button { background:var(--hi); color:var(--text); border:1px solid var(--border); border-radius:9px;
+           padding:9px 12px; font:600 14px "Segoe UI",system-ui,sans-serif; cursor:pointer; transition:.15s; }
+  button:hover { border-color:var(--c,var(--cyan)); color:var(--c,var(--cyan)); }
+  button.p { background:var(--c,var(--cyan)); color:#0a0c18; border-color:transparent; }
+  button.p:hover { filter:brightness(1.1); color:#0a0c18; }
+  .route { font-family:Consolas,monospace; font-size:13px; color:var(--gold); word-break:break-all; }
+  #msg { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:var(--panel);
+         border:1px solid var(--border); padding:10px 18px; border-radius:99px; opacity:0; transition:.25s; }
+  #msg.on { opacity:1; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--green); margin-right:6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>GenRoute · Panel de control</h1>
+  <div class="sub"><span class="dot" id="live"></span>Controla en vivo la simulación de Pygame · <a href="/docs" style="color:var(--cyan)">Swagger /docs</a></div>
+
+  <div class="stats">
+    <div class="card"><div class="l">GENERACIÓN</div><div class="v" id="gen">–</div></div>
+    <div class="card" style="--c:var(--gold)"><div class="l">MEJOR TIEMPO</div><div class="v" id="best">–</div></div>
+    <div class="card" style="--c:var(--cyan)"><div class="l">PROMEDIO</div><div class="v" id="avg">–</div></div>
+    <div class="card" style="--c:var(--violet)"><div class="l">PEOR TIEMPO</div><div class="v" id="worst">–</div></div>
+    <div class="card" style="--c:var(--green)"><div class="l">RUTAS ÚNICAS</div><div class="v" id="uniq">–</div></div>
+    <div class="card"><div class="l">ESTADO</div><div class="v" id="state" style="font-size:19px">–</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="box">
+      <h2>ACCIDENTES</h2>
+      <div class="row">
+        <div><label>Origen</label><input type="number" id="ao" value="3"></div>
+        <div><label>Destino</label><input type="number" id="ad" value="4"></div>
+        <div><label>Factor</label><input type="number" id="af" value="10" step="0.5" min="1"></div>
+      </div>
+      <div class="row">
+        <button class="p" style="--c:var(--red)" onclick="accident()">Provocar accidente</button>
+      </div>
+      <div class="row">
+        <button style="--c:var(--red)" onclick="post('/api/accident/random')">Aleatorio en la mejor ruta</button>
+        <button style="--c:var(--green)" onclick="post('/api/accident/clear')">Despejar todo</button>
+      </div>
+    </div>
+
+    <div class="box">
+      <h2>SEMÁFOROS</h2>
+      <label>Nodo con semáforo</label>
+      <select id="sn"></select>
+      <div class="row">
+        <button style="--c:var(--red)" onclick="sem('ROJO')">Forzar ROJO</button>
+        <button style="--c:var(--green)" onclick="sem('VERDE')">Forzar VERDE</button>
+        <button onclick="sem('AUTO')">AUTO</button>
+      </div>
+      <h2 style="margin-top:20px">RUTA</h2>
+      <div class="row">
+        <div><label>Origen</label><input type="number" id="ro"></div>
+        <div><label>Destino</label><input type="number" id="rd"></div>
+      </div>
+      <div class="row"><button class="p" style="--c:var(--cyan)" onclick="route()">Cambiar ruta</button></div>
+    </div>
+
+    <div class="box">
+      <h2>ALGORITMO GENÉTICO</h2>
+      <label>Tasa de mutación <b id="mrv">0.15</b></label>
+      <input type="range" id="mr" min="0" max="1" step="0.01" value="0.15" oninput="mrv.textContent=(+this.value).toFixed(2)">
+      <label>Tamaño de población <b id="psv">40</b></label>
+      <input type="range" id="ps" min="6" max="150" step="1" value="40" oninput="psv.textContent=this.value">
+      <label>Tasa de cruce <b id="crv">0.85</b></label>
+      <input type="range" id="cr" min="0" max="1" step="0.01" value="0.85" oninput="crv.textContent=(+this.value).toFixed(2)">
+      <div class="row"><button class="p" style="--c:var(--violet)" onclick="params()">Aplicar parámetros</button></div>
+    </div>
+
+    <div class="box">
+      <h2>SIMULACIÓN</h2>
+      <div class="row">
+        <button onclick="sim('pause')">Pausa</button>
+        <button onclick="sim('resume')">Reanudar</button>
+      </div>
+      <div class="row">
+        <button style="--c:var(--violet)" onclick="sim('turbo')">Turbo</button>
+        <button onclick="sim('normal')">Carrera</button>
+      </div>
+      <div class="row">
+        <button onclick="sim('slower')">Más lento</button>
+        <button onclick="sim('faster')">Más rápido</button>
+        <button style="--c:var(--amber)" onclick="sim('reset')">Reiniciar</button>
+      </div>
+      <h2 style="margin-top:20px">MEJOR RUTA</h2>
+      <div class="route" id="route">–</div>
+    </div>
+  </div>
+</div>
+<div id="msg"></div>
+<script>
+const $ = id => document.getElementById(id);
+const fmt = s => { s = Math.round(s); return Math.floor(s/60) + ":" + String(s%60).padStart(2,"0"); };
+let toastT;
+function toast(t, ok=true){ const m=$("msg"); m.textContent=t; m.style.color= ok? "var(--text)":"var(--red)";
+  m.classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>m.classList.remove("on"),2200); }
+async function post(url, body){
+  try {
+    const r = await fetch(url, {method:"POST", headers:{"Content-Type":"application/json"}, body: body? JSON.stringify(body): undefined});
+    const j = await r.json();
+    toast(r.ok ? "✓ " + (j.detalle||"OK") : "✗ " + (typeof j.detail==="string"? j.detail : JSON.stringify(j.detail)), r.ok);
+  } catch(e){ toast("✗ Sin conexión", false); }
+}
+const accident = () => post("/api/accident", {origen:+$("ao").value, destino:+$("ad").value, factor_trafico:+$("af").value});
+const sem = estado => post("/api/semaphore/toggle", {nodo_id:+$("sn").value, estado});
+const route = () => post("/api/route", {origen:+$("ro").value, destino:+$("rd").value});
+const params = () => post("/api/ga/params", {mutation_rate:+$("mr").value, population_size:+$("ps").value, crossover_rate:+$("cr").value});
+const sim = action => post("/api/simulation", {action});
+
+async function loadMap(){
+  try {
+    const m = await (await fetch("/api/map")).json();
+    $("sn").innerHTML = m.nodes.filter(n=>n.semaforo).map(n=>`<option value="${n.id}">Nodo ${n.id}</option>`).join("");
+  } catch(e){}
+}
+let first = true;
+async function poll(){
+  try {
+    const s = await (await fetch("/api/status")).json();
+    if (s.generacion){
+      $("gen").textContent = s.generacion; $("best").textContent = fmt(s.mejor_tiempo_s);
+      $("avg").textContent = fmt(s.promedio_s); $("worst").textContent = fmt(s.peor_tiempo_s);
+      $("uniq").textContent = s.rutas_activas + "/" + s.parametros.population_size;
+      $("state").textContent = s.estado.toUpperCase() + " · x" + s.velocidad_x;
+      $("route").textContent = s.mejor_ruta.join(" → ");
+      if (first){ first=false; $("ro").value=s.origen; $("rd").value=s.destino;
+        $("mr").value=s.parametros.mutation_rate; $("mrv").textContent=s.parametros.mutation_rate.toFixed(2);
+        $("ps").value=s.parametros.population_size; $("psv").textContent=s.parametros.population_size;
+        $("cr").value=s.parametros.crossover_rate; $("crv").textContent=s.parametros.crossover_rate.toFixed(2);
+        const r = s.mejor_ruta; if (r.length>3){ $("ao").value=r[2]; $("ad").value=r[3]; } }
+    }
+    $("live").style.background = "var(--green)";
+  } catch(e){ $("live").style.background = "var(--red)"; }
+}
+loadMap(); poll(); setInterval(poll, 1000);
+</script>
+</body>
+</html>

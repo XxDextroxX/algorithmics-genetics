@@ -1,0 +1,591 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GenRoute · Algoritmos genéticos</title>
+<style>
+  :root {
+    --bg:#090b16; --panel:#101424; --hi:#181e34; --border:#2c365c;
+    --text:#e2e8ff; --dim:#97a2c8; --faint:#5e6894;
+    --gold:#ffe228; --cyan:#00d2ff; --violet:#b054ff; --magenta:#ff36c4;
+    --red:#ff3854; --green:#32f082; --amber:#ffbe28; --blue:#409cff; --orange:#ff801e;
+    --W:1600px; --H:900px;
+  }
+  * { box-sizing:border-box; margin:0; }
+  html, body { height:100%; background:#05060d; color:var(--text);
+    font-family:"Segoe UI", "Helvetica Neue", system-ui, sans-serif; overflow:hidden; }
+  #viewport { position:fixed; inset:0; display:grid; place-items:center; }
+  #stage { width:var(--W); height:var(--H); position:relative; transform-origin:center; }
+  .slide { position:absolute; inset:0; padding:80px 96px; display:none; flex-direction:column;
+    background:
+      radial-gradient(1200px 600px at 100% 0%, rgba(176,84,255,.10), transparent 60%),
+      radial-gradient(900px 500px at 0% 100%, rgba(0,210,255,.08), transparent 60%),
+      var(--bg);
+    border-radius:18px; overflow:hidden; }
+  .slide.active { display:flex; animation:in .45s ease both; }
+  @keyframes in { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+  .kicker { font-size:18px; font-weight:700; letter-spacing:3px; text-transform:uppercase; color:var(--cyan); margin-bottom:14px; }
+  h1 { font-size:84px; line-height:1.02; font-weight:800; letter-spacing:-1.5px; }
+  h2 { font-size:54px; line-height:1.08; font-weight:800; letter-spacing:-.8px; margin-bottom:34px; }
+  h3 { font-size:26px; font-weight:700; margin-bottom:10px; }
+  p, li { font-size:26px; line-height:1.45; color:var(--dim); }
+  b, strong { color:var(--text); font-weight:650; }
+  .lead { font-size:30px; color:var(--dim); max-width:1150px; }
+  .gold { color:var(--gold); } .cyan { color:var(--cyan); } .violet { color:var(--violet); }
+  .green { color:var(--green); } .red { color:var(--red); } .magenta { color:var(--magenta); }
+  .grad { background:linear-gradient(90deg, var(--cyan), var(--magenta) 55%, var(--gold));
+    -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:28px; }
+  .grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; }
+  .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:20px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:26px 28px;
+    border-top:3px solid var(--c, var(--border)); }
+  .card p, .card li { font-size:22px; }
+  .card h3 { color:var(--c, var(--text)); }
+  .card .tag { font-size:15px; letter-spacing:1.5px; font-weight:700; color:var(--faint); text-transform:uppercase; margin-bottom:6px; }
+  ul.clean { list-style:none; padding:0; }
+  ul.clean li { padding-left:30px; position:relative; margin:8px 0; }
+  ul.clean li::before { content:""; position:absolute; left:4px; top:15px; width:10px; height:10px; border-radius:50%;
+    background:var(--c, var(--cyan)); box-shadow:0 0 12px var(--c, var(--cyan)); }
+  .card ul.clean li::before { top:12px; }
+  code, .mono { font-family:"Cascadia Mono", Consolas, monospace; }
+  .code { background:#0c0f1e; border:1px solid var(--border); border-radius:14px; padding:22px 26px;
+    font-family:"Cascadia Mono", Consolas, monospace; font-size:22px; line-height:1.55; color:var(--text); white-space:pre; }
+  .chips { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  .chip { font-family:"Cascadia Mono", Consolas, monospace; font-size:24px; font-weight:600; min-width:62px; text-align:center;
+    padding:8px 12px; border-radius:10px; background:var(--hi); border:1px solid var(--border); color:var(--text); }
+  .chip.o { background:var(--blue); color:#06101e; border-color:transparent; }
+  .chip.d { background:var(--green); color:#06140c; border-color:transparent; }
+  .chip.k { background:var(--gold); color:#141000; border-color:transparent; box-shadow:0 0 18px rgba(255,226,40,.55); }
+  .chip.a { border-color:var(--cyan); color:var(--cyan); }
+  .chip.b { border-color:var(--magenta); color:var(--magenta); }
+  .chip.n { border-color:var(--violet); color:var(--violet); border-style:dashed; }
+  .arrow { color:var(--faint); font-size:22px; }
+  .label { font-size:18px; font-weight:700; letter-spacing:1.5px; color:var(--faint); text-transform:uppercase; width:150px; flex:none; }
+  .row { display:flex; align-items:center; gap:18px; margin:14px 0; }
+  .formula { font-size:34px; color:var(--text); background:var(--panel); border:1px solid var(--border);
+    border-radius:16px; padding:24px 30px; text-align:center; font-family:"Cambria Math", "Times New Roman", serif; }
+  .formula .frac { display:inline-flex; flex-direction:column; vertical-align:middle; text-align:center; margin:0 8px; }
+  .formula .frac span:first-child { border-bottom:2px solid var(--dim); padding:0 8px 4px; }
+  .formula .frac span:last-child { padding-top:4px; }
+  .shot { border-radius:14px; border:1px solid var(--border); box-shadow:0 30px 80px rgba(0,0,0,.6), 0 0 60px rgba(0,210,255,.08); }
+  table { border-collapse:collapse; width:100%; font-size:23px; }
+  th { text-align:left; font-size:16px; letter-spacing:1.5px; text-transform:uppercase; color:var(--faint); padding:10px 16px; border-bottom:1px solid var(--border); }
+  td { padding:14px 16px; border-bottom:1px solid rgba(44,54,92,.6); color:var(--dim); vertical-align:top; }
+  td:first-child { color:var(--text); font-weight:650; white-space:nowrap; }
+  .foot { position:absolute; left:96px; right:96px; bottom:34px; display:flex; justify-content:space-between;
+    font-size:16px; color:var(--faint); letter-spacing:1px; }
+  .src { font-size:17px; color:var(--faint); margin-top:auto; padding-top:18px; }
+  .big-num { font-size:96px; font-weight:800; line-height:1; }
+  .center { align-items:center; justify-content:center; text-align:center; }
+  .spacer { flex:1; }
+  #progress { position:fixed; left:0; bottom:0; height:4px; background:linear-gradient(90deg,var(--cyan),var(--magenta),var(--gold)); transition:width .3s; z-index:9; }
+  #counter { position:fixed; right:18px; bottom:12px; font:600 14px "Segoe UI",sans-serif; color:var(--faint); z-index:9; }
+  #hint { position:fixed; left:18px; bottom:12px; font:14px "Segoe UI",sans-serif; color:var(--faint); z-index:9; }
+  @media print {
+    @page { size:1600px 900px; margin:0; }
+    html, body { overflow:visible; background:var(--bg); }
+    #viewport { position:static; display:block; }
+    #stage { transform:none !important; width:auto; height:auto; }
+    .slide { position:relative; display:flex !important; width:1600px; height:900px; border-radius:0; page-break-after:always; animation:none; }
+    #progress, #counter, #hint { display:none; }
+  }
+</style>
+</head>
+<body>
+<div id="viewport"><div id="stage">
+
+<!-- 1 · Portada -->
+<section class="slide center">
+  <svg width="220" height="110" viewBox="0 0 220 110" style="margin-bottom:30px">
+    <defs><filter id="g"><feGaussianBlur stdDeviation="3"/></filter></defs>
+    <g id="helix"></g>
+  </svg>
+  <div class="kicker">Demo · Inteligencia computacional</div>
+  <h1><span class="grad">GenRoute</span></h1>
+  <p class="lead" style="margin-top:22px">Algoritmos genéticos que <b>aprenden la mejor ruta</b> en una ciudad viva:
+    semáforos, atascos y accidentes en tiempo real.</p>
+  <div class="foot"><span>Python · FastAPI · Pygame</span><span>Presentación técnica</span></div>
+</section>
+
+<!-- 2 · El problema -->
+<section class="slide">
+  <div class="kicker">El problema</div>
+  <h2>Llevar un bus de <span style="color:var(--blue)">A</span> a <span class="green">B</span> lo más rápido posible</h2>
+  <div class="grid2" style="align-items:center">
+    <div>
+      <ul class="clean">
+        <li>126 intersecciones y 420 tramos de calle: hay <b>millones de rutas posibles</b>.</li>
+        <li style="--c:var(--amber)">Los <b>semáforos</b> dependen del instante en que llegas al cruce.</li>
+        <li style="--c:var(--orange)">La <b>congestión</b> aparece y desaparece.</li>
+        <li style="--c:var(--red)">Los <b>accidentes</b> bloquean calles sin avisar.</li>
+      </ul>
+      <p style="margin-top:26px">La "mejor ruta" <b>cambia con el tiempo</b>. No basta con calcularla una vez: hay que seguir buscándola.</p>
+    </div>
+    <img class="shot" src="img/demo_zoom.png" alt="Detalle de la ciudad en la demo" style="width:100%">
+  </div>
+</section>
+
+<!-- 3 · Qué es un AG -->
+<section class="slide">
+  <div class="kicker">Conceptos</div>
+  <h2>¿Qué es un algoritmo genético?</h2>
+  <p class="lead">Una técnica de optimización inspirada en la <b>evolución natural</b>. En vez de calcular la respuesta,
+    <b>se cría</b>: se parte de muchas soluciones malas y en cada generación sobreviven y se combinan las mejores.</p>
+  <div class="grid4" style="margin-top:44px">
+    <div class="card" style="--c:var(--cyan)"><div class="tag">Darwin</div><h3>Selección natural</h3><p>El más apto tiene más hijos.</p></div>
+    <div class="card" style="--c:var(--magenta)"><div class="tag">Genética</div><h3>Herencia</h3><p>Los hijos combinan rasgos de sus padres.</p></div>
+    <div class="card" style="--c:var(--violet)"><div class="tag">Azar</div><h3>Mutación</h3><p>Cambios pequeños aportan ideas nuevas.</p></div>
+    <div class="card" style="--c:var(--gold)"><div class="tag">Resultado</div><h3>Adaptación</h3><p>La población mejora generación tras generación.</p></div>
+  </div>
+  <p class="src">John Holland formalizó los algoritmos genéticos en los años 70 (<i>Adaptation in Natural and Artificial Systems</i>, 1975).</p>
+</section>
+
+<!-- 4 · Vocabulario -->
+<section class="slide">
+  <div class="kicker">Conceptos</div>
+  <h2>Vocabulario, traducido a nuestra demo</h2>
+  <table>
+    <tr><th>Término</th><th>Significado general</th><th>En GenRoute</th></tr>
+    <tr><td class="cyan">Individuo</td><td>Una solución candidata</td><td>Un bus con su ruta</td></tr>
+    <tr><td class="cyan">Cromosoma / genoma</td><td>Cómo se codifica la solución</td><td>Lista de nodos: <code>[54, 72, 90, 91, …, 53]</code></td></tr>
+    <tr><td class="cyan">Gen</td><td>Una pieza del cromosoma</td><td>Una intersección de la ruta</td></tr>
+    <tr><td class="cyan">Población</td><td>El conjunto de soluciones</td><td>40 buses (ajustable en vivo)</td></tr>
+    <tr><td class="gold">Fitness</td><td>Qué tan buena es una solución</td><td><code>1 / tiempo total de viaje</code></td></tr>
+    <tr><td class="cyan">Generación</td><td>Una iteración del ciclo</td><td>Una "carrera" de todos los buses</td></tr>
+  </table>
+</section>
+
+<!-- 5 · Ciclo -->
+<section class="slide">
+  <div class="kicker">Conceptos</div>
+  <h2>El ciclo evolutivo</h2>
+  <div class="grid2" style="grid-template-columns:1.05fr 1fr; align-items:center; gap:50px">
+    <svg viewBox="0 0 640 560" style="width:100%">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#5e6894"/></marker>
+        <filter id="glow"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
+      <circle cx="320" cy="280" r="190" fill="none" stroke="#2c365c" stroke-width="2" stroke-dasharray="6 8"/>
+      <g font-family="Segoe UI" font-weight="700" text-anchor="middle">
+        <g transform="translate(320,90)"><rect x="-110" y="-36" width="220" height="72" rx="16" fill="#101424" stroke="#409cff" stroke-width="2"/><text y="-2" fill="#e2e8ff" font-size="24">1 · Población</text><text y="22" fill="#97a2c8" font-size="16" font-weight="400">rutas aleatorias</text></g>
+        <g transform="translate(500,220)"><rect x="-110" y="-36" width="220" height="72" rx="16" fill="#101424" stroke="#ffe228" stroke-width="2" filter="url(#glow)"/><text y="-2" fill="#ffe228" font-size="24">2 · Evaluar</text><text y="22" fill="#97a2c8" font-size="16" font-weight="400">fitness = 1 / tiempo</text></g>
+        <g transform="translate(440,430)"><rect x="-110" y="-36" width="220" height="72" rx="16" fill="#101424" stroke="#00d2ff" stroke-width="2"/><text y="-2" fill="#e2e8ff" font-size="24">3 · Seleccionar</text><text y="22" fill="#97a2c8" font-size="16" font-weight="400">torneo k = 3</text></g>
+        <g transform="translate(200,430)"><rect x="-110" y="-36" width="220" height="72" rx="16" fill="#101424" stroke="#ff36c4" stroke-width="2"/><text y="-2" fill="#e2e8ff" font-size="24">4 · Cruzar</text><text y="22" fill="#97a2c8" font-size="16" font-weight="400">nodo común</text></g>
+        <g transform="translate(140,220)"><rect x="-110" y="-36" width="220" height="72" rx="16" fill="#101424" stroke="#b054ff" stroke-width="2"/><text y="-2" fill="#e2e8ff" font-size="24">5 · Mutar</text><text y="22" fill="#97a2c8" font-size="16" font-weight="400">desvío aleatorio</text></g>
+      </g>
+      <g stroke="#5e6894" stroke-width="2.5" fill="none" marker-end="url(#ah)">
+        <path d="M420,110 Q480,140 495,176"/><path d="M510,262 Q505,340 470,388"/><path d="M325,440 L318,440"/>
+        <path d="M150,390 Q120,320 130,262"/><path d="M180,180 Q200,120 205,110"/>
+      </g>
+      <text x="320" y="288" text-anchor="middle" font-family="Segoe UI" font-size="20" fill="#5e6894" font-weight="700" letter-spacing="2">GENERACIÓN N → N+1</text>
+    </svg>
+    <div>
+      <ul class="clean">
+        <li><b>Población:</b> se crean N soluciones al azar.</li>
+        <li style="--c:var(--gold)"><b>Evaluar:</b> se mide cada una con la función de fitness.</li>
+        <li><b>Seleccionar:</b> las mejores tienen más probabilidad de ser padres.</li>
+        <li style="--c:var(--magenta)"><b>Cruzar:</b> los hijos mezclan partes de dos padres.</li>
+        <li style="--c:var(--violet)"><b>Mutar:</b> se altera algo al azar para explorar.</li>
+      </ul>
+      <p style="margin-top:20px">Se repite indefinidamente. Lo que no aporta va desapareciendo y lo útil se hereda.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 6 · Por qué no Dijkstra -->
+<section class="slide">
+  <div class="kicker">Honestidad técnica</div>
+  <h2>¿Por qué no usar simplemente Dijkstra o A*?</h2>
+  <div class="grid2">
+    <div class="card" style="--c:var(--green)">
+      <h3>Dijkstra / A* ganan si…</h3>
+      <ul class="clean" style="--c:var(--green)">
+        <li>el costo de cada calle es <b>fijo y conocido</b>,</li>
+        <li>solo se optimiza <b>una cosa</b> (distancia o tiempo),</li>
+        <li>el problema es un camino en un grafo y nada más.</li>
+      </ul>
+    </div>
+    <div class="card" style="--c:var(--gold)">
+      <h3>Un AG brilla cuando…</h3>
+      <ul class="clean" style="--c:var(--gold)">
+        <li>el costo depende de <b>cuándo</b> llegas (semáforos),</li>
+        <li>la evaluación es una <b>caja negra</b>: simulación, modelo de ML o un LLM,</li>
+        <li>hay <b>varios objetivos</b> o restricciones raras,</li>
+        <li>el espacio de búsqueda es enorme y no hay gradiente.</li>
+      </ul>
+    </div>
+  </div>
+  <p style="margin-top:34px">Aquí la ciudad es un <b>escenario visual</b> para ver evolucionar a un AG. La misma mecánica se aplica
+    a problemas donde no existe un algoritmo exacto.</p>
+</section>
+
+<!-- 7 · Grafo -->
+<section class="slide">
+  <div class="kicker">Lógica de la demo</div>
+  <h2>La ciudad es un grafo dirigido y ponderado</h2>
+  <div class="grid2" style="gap:40px">
+    <div>
+      <h3 class="cyan">Nodos = intersecciones</h3>
+      <div class="code">id, pos_x, pos_y
+tipo: ORIGEN | DESTINO | INTERSECCION
+semáforo: ciclo de 2 fases (H / V)</div>
+      <h3 class="cyan" style="margin-top:28px">Aristas = tramos de calle</h3>
+      <div class="code">distancia          (m)
+limite_velocidad   30 · 40 · 60 km/h
+factor_trafico     1.0 → 5.0+ (accidente: 10)
+tiene_semaforo / tiene_pare</div>
+    </div>
+    <div>
+      <ul class="clean">
+        <li><b>Avenidas</b> rápidas (60 km/h) y calles lentas: aparecen dilemas reales.</li>
+        <li style="--c:var(--blue)">Un <b>río con 3 puentes</b>: cuellos de botella naturales.</li>
+        <li style="--c:var(--amber)">Semáforos con ciclos de 70 a 100 s y desfase propio.</li>
+        <li style="--c:var(--orange)"><b>Olas de congestión</b> aleatorias que suben el <code>factor_trafico</code>.</li>
+        <li style="--c:var(--red)">Accidentes y semáforos forzados <b>vía API o con un clic</b>.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 8 · Genoma y fitness -->
+<section class="slide">
+  <div class="kicker">Lógica de la demo</div>
+  <h2>Genoma y función de fitness</h2>
+  <div class="row"><span class="label">Cromosoma</span>
+    <div class="chips"><span class="chip o">54</span><span class="arrow">→</span><span class="chip">72</span><span class="arrow">→</span><span class="chip">90</span><span class="arrow">→</span><span class="chip">91</span><span class="arrow">→</span><span class="chip">…</span><span class="arrow">→</span><span class="chip">52</span><span class="arrow">→</span><span class="chip d">53</span></div>
+  </div>
+  <p style="margin:6px 0 30px 168px">Un camino continuo y <b>sin ciclos</b> de ORIGEN a DESTINO. Cada número es una intersección.</p>
+  <div class="grid2" style="gap:24px">
+    <div class="formula">tiempo<sub>tramo</sub> =
+      <span class="frac"><span>distancia</span><span>velocidad / factor_tráfico</span></span></div>
+    <div class="formula">fitness = <span class="frac"><span>1</span><span>Σ tramos + Σ esperas</span></span></div>
+  </div>
+  <div class="grid3" style="margin-top:28px">
+    <div class="card" style="--c:var(--red)"><h3>Semáforo en rojo</h3><p>Espera <b>real</b> según el segundo exacto de llegada al cruce.</p></div>
+    <div class="card" style="--c:var(--text)"><h3>Señal de PARE</h3><p>Penalización fija de <b>3 s</b>.</p></div>
+    <div class="card" style="--c:var(--amber)"><h3>Rojo forzado</h3><p>Penalización de <b>120 s</b>: el AG aprende a evitarlo.</p></div>
+  </div>
+</section>
+
+<!-- 9 · Población inicial y selección -->
+<section class="slide">
+  <div class="kicker">Operadores</div>
+  <h2>Población inicial y selección</h2>
+  <div class="grid2" style="gap:40px">
+    <div class="card" style="--c:var(--blue)">
+      <div class="tag">Paso 1</div><h3>Caminatas aleatorias</h3>
+      <p>Cada bus sale del origen y elige calles al azar, con un <b>leve sesgo</b> hacia el destino. Si se encierra, retrocede.</p>
+      <p style="margin-top:14px">Cada individuo usa un sesgo distinto: unos van casi directos y otros dan rodeos enormes. Así nace la <b>diversidad</b>.</p>
+    </div>
+    <div class="card" style="--c:var(--cyan)">
+      <div class="tag">Paso 3</div><h3>Torneo (k = 3) + elitismo</h3>
+      <div class="chips" style="margin:14px 0 18px"><span class="chip">7:41</span><span class="chip k">5:30</span><span class="chip">9:12</span><span class="arrow">⟶ gana 5:30</span></div>
+      <p>Se toman 3 buses al azar y el más rápido es padre. Es simple, robusto y no necesita normalizar el fitness.</p>
+      <p style="margin-top:14px"><b>Elitismo:</b> los 2 mejores pasan <b>intactos</b> a la siguiente generación, así que nunca se pierde lo ganado.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 10 · Cruce -->
+<section class="slide">
+  <div class="kicker">Operadores</div>
+  <h2>Cruce por nodo común</h2>
+  <div class="row"><span class="label">Padre 1</span><div class="chips">
+    <span class="chip o">54</span><span class="chip a">55</span><span class="chip a">56</span><span class="chip k">74</span><span class="chip a">75</span><span class="chip a">76</span><span class="chip d">53</span></div></div>
+  <div class="row"><span class="label">Padre 2</span><div class="chips">
+    <span class="chip o">54</span><span class="chip b">72</span><span class="chip b">73</span><span class="chip k">74</span><span class="chip b">92</span><span class="chip b">93</span><span class="chip b">71</span><span class="chip d">53</span></div></div>
+  <div style="height:22px"></div>
+  <div class="row"><span class="label">Hijo 1</span><div class="chips">
+    <span class="chip o">54</span><span class="chip a">55</span><span class="chip a">56</span><span class="chip k">74</span><span class="chip b">92</span><span class="chip b">93</span><span class="chip b">71</span><span class="chip d">53</span></div></div>
+  <div class="row"><span class="label">Hijo 2</span><div class="chips">
+    <span class="chip o">54</span><span class="chip b">72</span><span class="chip b">73</span><span class="chip k">74</span><span class="chip a">75</span><span class="chip a">76</span><span class="chip d">53</span></div></div>
+  <p style="margin-top:30px">Se busca una intersección que <b class="gold">ambas rutas comparten</b> y se intercambia todo lo que viene después.
+    Los hijos son <b>siempre rutas válidas</b>. Si al mezclar aparece un bucle, se recorta.</p>
+</section>
+
+<!-- 11 · Mutación y diversidad -->
+<section class="slide">
+  <div class="kicker">Operadores</div>
+  <h2>Mutación por desvío y diversidad</h2>
+  <div class="row"><span class="label">Antes</span><div class="chips">
+    <span class="chip o">54</span><span class="chip">55</span><span class="chip">56</span><span class="chip k">57</span><span class="chip">58</span><span class="chip">59</span><span class="chip d">53</span></div></div>
+  <div class="row"><span class="label">Después</span><div class="chips">
+    <span class="chip o">54</span><span class="chip">55</span><span class="chip">56</span><span class="chip k">57</span><span class="chip n">39</span><span class="chip n">40</span><span class="chip n">41</span><span class="chip d">53</span></div></div>
+  <p style="margin:18px 0 34px">Con probabilidad <b>0.20</b> se elige un nodo intermedio y desde ahí se traza un <b class="violet">camino aleatorio nuevo</b> hasta el destino.</p>
+  <div class="grid3">
+    <div class="card" style="--c:var(--cyan)"><h3>Explotar</h3><p>La selección y el elitismo concentran la población en la mejor ruta conocida.</p></div>
+    <div class="card" style="--c:var(--violet)"><h3>Explorar</h3><p>La mutación y la <b>inmigración</b> (~8 % de rutas nuevas por generación) buscan alternativas.</p></div>
+    <div class="card" style="--c:var(--gold)"><h3>Equilibrio</h3><p>Por eso "rutas únicas" sube y baja: es el tira y afloja entre ambas fuerzas.</p></div>
+  </div>
+</section>
+
+<!-- 12 · Adaptación -->
+<section class="slide">
+  <div class="kicker">Lo interesante</div>
+  <h2>Adaptación en tiempo real</h2>
+  <div class="grid2" style="grid-template-columns:1fr 1.15fr; gap:44px; align-items:center">
+    <div>
+      <ul class="clean">
+        <li style="--c:var(--red)">Ocurre un <b>accidente</b> sobre la mejor ruta: ese tramo pasa a ser 10 veces más lento.</li>
+        <li style="--c:var(--gold)">La generación siguiente se evalúa <b>con la ciudad nueva</b> y la ruta campeona pierde.</li>
+        <li style="--c:var(--violet)">Las rutas "raras" que la diversidad mantenía vivas <b>toman el relevo</b>.</li>
+        <li style="--c:var(--green)">En pocas generaciones aparece un <b>desvío</b>, a menudo por otro puente.</li>
+      </ul>
+      <p style="margin-top:22px">Por eso el AG <b>no "termina"</b>: es optimización continua, como un navegador que recalcula.</p>
+    </div>
+    <img class="shot" src="img/demo.png" alt="Pantalla completa de la demo" style="width:100%">
+  </div>
+</section>
+
+<!-- 13 · Por qué sube y baja -->
+<section class="slide">
+  <div class="kicker">Cómo leer la gráfica</div>
+  <h2>¿Por qué el mejor tiempo sube y baja?</h2>
+  <div class="grid3">
+    <div class="card" style="--c:var(--amber)"><h3>Semáforos</h3><p>Cada generación sale en otro momento del reloj. <b>La misma ruta</b> puede encontrar todo en verde o tres rojos seguidos.</p></div>
+    <div class="card" style="--c:var(--orange)"><h3>Congestión</h3><p>Los atascos aleatorios cambian el costo de las calles entre generaciones.</p></div>
+    <div class="card" style="--c:var(--red)"><h3>Eventos</h3><p>Un accidente o un rojo forzado genera un <b>pico</b> en la gráfica, seguido de la recuperación.</p></div>
+  </div>
+  <div class="card" style="--c:var(--cyan); margin-top:30px">
+    <h3>El indicador fiable es el <span class="cyan">promedio</span></h3>
+    <p>La población entera mejora de forma sostenida: de ~12 min en la generación 1 a ~6 min. El mejor individuo oscila
+      porque el entorno es <b>estocástico</b>, no porque el algoritmo empeore.</p>
+  </div>
+</section>
+
+<!-- 14 · Arquitectura -->
+<section class="slide">
+  <div class="kicker">Implementación</div>
+  <h2>Arquitectura: dos hilos y una cola</h2>
+  <svg viewBox="0 0 1400 330" style="width:100%; margin-top:10px">
+    <defs><marker id="ah2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#97a2c8"/></marker></defs>
+    <g font-family="Segoe UI" text-anchor="middle">
+      <rect x="10" y="90" width="300" height="150" rx="18" fill="#101424" stroke="#2c365c" stroke-width="2"/>
+      <text x="160" y="150" fill="#e2e8ff" font-size="26" font-weight="700">Cliente</text>
+      <text x="160" y="186" fill="#97a2c8" font-size="19">panel web · cURL · /docs</text>
+      <rect x="420" y="90" width="300" height="150" rx="18" fill="#101424" stroke="#00d2ff" stroke-width="2"/>
+      <text x="570" y="150" fill="#00d2ff" font-size="26" font-weight="700">FastAPI</text>
+      <text x="570" y="186" fill="#97a2c8" font-size="19">hilo secundario · uvicorn</text>
+      <rect x="1080" y="90" width="310" height="150" rx="18" fill="#101424" stroke="#ffe228" stroke-width="2"/>
+      <text x="1235" y="150" fill="#ffe228" font-size="26" font-weight="700">Pygame + AG</text>
+      <text x="1235" y="186" fill="#97a2c8" font-size="19">hilo principal · 60 FPS</text>
+      <rect x="800" y="40" width="200" height="70" rx="14" fill="#181e34" stroke="#ff36c4" stroke-width="2"/>
+      <text x="900" y="83" fill="#ff36c4" font-size="21" font-weight="700">queue.Queue</text>
+      <rect x="800" y="220" width="200" height="70" rx="14" fill="#181e34" stroke="#32f082" stroke-width="2"/>
+      <text x="900" y="263" fill="#32f082" font-size="21" font-weight="700">estado + Lock</text>
+      <text x="365" y="150" fill="#97a2c8" font-size="17">HTTP</text>
+      <text x="900" y="20" fill="#97a2c8" font-size="17">comandos →</text>
+      <text x="900" y="318" fill="#97a2c8" font-size="17">← métricas</text>
+    </g>
+    <g stroke="#97a2c8" stroke-width="2.5" fill="none" marker-end="url(#ah2)">
+      <path d="M310,165 L412,165"/><path d="M720,130 L792,85"/><path d="M1000,75 L1072,120"/>
+      <path d="M1080,215 L1008,250"/><path d="M800,255 L728,210"/>
+    </g>
+  </svg>
+  <div class="grid3" style="margin-top:20px">
+    <div class="card" style="--c:var(--cyan)"><p><b>FastAPI</b> valida el body con Pydantic y solo <b>encola</b> el comando. Nunca toca la simulación.</p></div>
+    <div class="card" style="--c:var(--gold)"><p><b>Pygame</b> vacía la cola en cada frame y aplica los cambios entre frames, sin condiciones de carrera.</p></div>
+    <div class="card" style="--c:var(--green)"><p>Las métricas vuelven al <code>GET /api/status</code> como una instantánea protegida con <code>Lock</code>.</p></div>
+  </div>
+</section>
+
+<!-- 15 · Separador casos de uso -->
+<section class="slide center">
+  <div class="kicker">Más allá de la demo</div>
+  <h1 style="font-size:74px">¿Dónde se usan hoy<br><span class="grad">los algoritmos evolutivos?</span></h1>
+  <p class="lead" style="margin-top:26px">Todo lo que se pueda <b>codificar</b> como solución y <b>medir</b> con un número se puede evolucionar.</p>
+</section>
+
+<!-- 16 · ML -->
+<section class="slide">
+  <div class="kicker">Casos de uso · Machine Learning</div>
+  <h2>Optimizar modelos de machine learning</h2>
+  <div class="grid3">
+    <div class="card" style="--c:var(--cyan)"><div class="tag">Hiperparámetros</div><h3>Ajuste automático</h3>
+      <p>Tasa de aprendizaje, profundidad, regularización… <b>Optuna</b> incluye el muestreador evolutivo NSGA-II para varios objetivos a la vez.</p></div>
+    <div class="card" style="--c:var(--magenta)"><div class="tag">AutoML</div><h3>Pipelines completos</h3>
+      <p><b>TPOT</b> usa programación genética para evolucionar la secuencia de preprocesamiento, selección de variables y modelo.</p></div>
+    <div class="card" style="--c:var(--gold)"><div class="tag">Features</div><h3>Selección de variables</h3>
+      <p>El cromosoma es una máscara binaria de columnas y el fitness es la precisión en validación menos el costo de usar más variables.</p></div>
+  </div>
+  <div class="code" style="margin-top:28px">individuo = {"lr": 3e-4, "max_depth": 8, "dropout": 0.2, "n_estimators": 400}
+fitness   = accuracy_validacion - 0.01 * tiempo_entrenamiento</div>
+</section>
+
+<!-- 17 · Redes neuronales -->
+<section class="slide">
+  <div class="kicker">Casos de uso · Redes neuronales</div>
+  <h2>Diseñar y combinar redes neuronales</h2>
+  <div class="grid2" style="gap:24px">
+    <div class="card" style="--c:var(--violet)"><div class="tag">NAS</div><h3>Búsqueda de arquitecturas</h3>
+      <p>Evolucionar <b>qué capas</b> usar, en qué orden y cómo conectarlas. Google obtuvo <b>AmoebaNet</b>, entre los mejores clasificadores de ImageNet, con evolución regularizada (Real et al., 2019).</p></div>
+    <div class="card" style="--c:var(--cyan)"><div class="tag">Neuroevolución</div><h3>Pesos y topología</h3>
+      <p><b>NEAT</b> hace crecer redes desde cero. OpenAI mostró que las <b>Evolution Strategies</b> compiten con el aprendizaje por refuerzo y escalan a miles de CPUs (2017).</p></div>
+    <div class="card" style="--c:var(--gold)"><div class="tag">LLMs</div><h3>Fusión evolutiva de modelos</h3>
+      <p><b>Sakana AI</b> (2024) evolucionó recetas para <b>combinar capas y pesos</b> de LLMs abiertos y creó modelos nuevos sin entrenar desde cero.</p></div>
+    <div class="card" style="--c:var(--magenta)"><div class="tag">Ejemplo de genoma</div>
+      <div class="code" style="font-size:19px; padding:16px 18px; margin-top:6px">capas = [Conv(64), Conv(128), Pool,
+         Dense(256), Dropout(.3)]
+mutar: +capa · -capa · cambiar tamaño</div></div>
+  </div>
+</section>
+
+<!-- 18 · Prompts -->
+<section class="slide">
+  <div class="kicker">Casos de uso · IA generativa</div>
+  <h2>Encontrar el mejor prompt</h2>
+  <div class="grid2" style="grid-template-columns:1.1fr 1fr; gap:36px">
+    <table>
+      <tr><th>Concepto AG</th><th>Optimización de prompts</th></tr>
+      <tr><td class="cyan">Individuo</td><td>Un prompt (instrucciones + ejemplos)</td></tr>
+      <tr><td class="gold">Fitness</td><td>% de aciertos en un set de evaluación</td></tr>
+      <tr><td class="magenta">Cruce</td><td>Un LLM combina lo mejor de dos prompts</td></tr>
+      <tr><td class="violet">Mutación</td><td>Un LLM reescribe o parafrasea una instrucción</td></tr>
+      <tr><td class="cyan">Selección</td><td>Sobreviven los prompts con mejor puntaje</td></tr>
+    </table>
+    <div>
+      <ul class="clean">
+        <li><b>EvoPrompt</b> (2023): AG y evolución diferencial con LLMs como operadores. Superó prompts escritos a mano.</li>
+        <li style="--c:var(--magenta)"><b>Promptbreeder</b> (DeepMind, 2023): evoluciona los prompts y también <b>cómo mutarlos</b>.</li>
+        <li style="--c:var(--gold)"><b>GEPA</b> (2025): evolución reflexiva de prompts, disponible en <b>DSPy</b>. Compite con el ajuste por RL con muchas menos ejecuciones.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 19 · Descubrimiento -->
+<section class="slide">
+  <div class="kicker">Casos de uso · Frontera de la IA</div>
+  <h2>LLMs + evolución para descubrir algoritmos</h2>
+  <div class="grid2" style="gap:28px">
+    <div class="card" style="--c:var(--gold)"><div class="tag">Google DeepMind · 2025</div><h3>AlphaEvolve</h3>
+      <p>Evoluciona <b>código</b>: el LLM propone cambios y evaluadores automáticos hacen de fitness. Encontró un método para multiplicar matrices complejas 4×4 con <b>48 multiplicaciones</b> y una heurística que recupera ~0.7 % del cómputo de los centros de datos de Google.</p></div>
+    <div class="card" style="--c:var(--cyan)"><div class="tag">Google DeepMind · 2023</div><h3>FunSearch</h3>
+      <p>Búsqueda evolutiva de programas con un LLM. Halló construcciones nuevas para el problema matemático del <b>cap set</b> (publicado en <i>Nature</i>).</p></div>
+    <div class="card" style="--c:var(--red)"><div class="tag">Seguridad de IA</div><h3>Red teaming automatizado</h3>
+      <p>Métodos como AutoDAN usan algoritmos genéticos para <b>encontrar prompts que rompen las protecciones</b> de un modelo y así poder corregirlas.</p></div>
+    <div class="card" style="--c:var(--green)"><div class="tag">Software</div><h3>Testing y fuzzing</h3>
+      <p><b>AFL</b> muta entradas guiándose por la cobertura de código para encontrar fallos. <b>EvoSuite</b> genera pruebas unitarias para Java con un AG.</p></div>
+  </div>
+</section>
+
+<!-- 20 · Industria -->
+<section class="slide">
+  <div class="kicker">Casos de uso · Industria</div>
+  <h2>Optimización en el mundo real</h2>
+  <div class="grid4">
+    <div class="card" style="--c:var(--blue)"><h3>Logística</h3><p>Rutas de flotas (VRP), carga de camiones, almacenes.</p></div>
+    <div class="card" style="--c:var(--cyan)"><h3>Horarios</h3><p>Turnos de hospital, horarios universitarios, planificación de fábricas.</p></div>
+    <div class="card" style="--c:var(--gold)"><h3>Ingeniería</h3><p>La antena del satélite <b>NASA ST5</b> (2006) fue diseñada por evolución. También se usa en diseño generativo de piezas.</p></div>
+    <div class="card" style="--c:var(--green)"><h3>Energía</h3><p>Ubicación de turbinas en parques eólicos y despacho de redes eléctricas.</p></div>
+    <div class="card" style="--c:var(--violet)"><h3>Química</h3><p>Diseño de moléculas candidatas a fármacos con propiedades objetivo.</p></div>
+    <div class="card" style="--c:var(--magenta)"><h3>Finanzas</h3><p>Portafolios con varios objetivos (riesgo y retorno) y reglas de trading.</p></div>
+    <div class="card" style="--c:var(--orange)"><h3>Videojuegos</h3><p>Niveles procedurales, balanceo e IA de enemigos.</p></div>
+    <div class="card" style="--c:var(--red)"><h3>Robótica</h3><p>Controladores de marcha y diseño de la forma del robot.</p></div>
+  </div>
+</section>
+
+<!-- 21 · Cuándo usarlo -->
+<section class="slide">
+  <div class="kicker">Resumen</div>
+  <h2>¿Cuándo conviene un algoritmo genético?</h2>
+  <div class="grid2">
+    <div class="card" style="--c:var(--green)"><h3>Úsalo cuando…</h3>
+      <ul class="clean" style="--c:var(--green)">
+        <li>el espacio de soluciones es <b>enorme</b> o combinatorio,</li>
+        <li>solo puedes <b>evaluar</b> soluciones (caja negra),</li>
+        <li>no hay gradiente o la función es ruidosa,</li>
+        <li>hay <b>varios objetivos</b> en conflicto,</li>
+        <li>el entorno <b>cambia</b> y hay que readaptarse.</li>
+      </ul></div>
+    <div class="card" style="--c:var(--red)"><h3>Evítalo cuando…</h3>
+      <ul class="clean" style="--c:var(--red)">
+        <li>existe un algoritmo <b>exacto y eficiente</b> (Dijkstra, programación lineal),</li>
+        <li>evaluar una solución es <b>muy caro</b> y tienes pocas,</li>
+        <li>necesitas una garantía de óptimo global,</li>
+        <li>hay gradiente disponible (descenso de gradiente suele ganar).</li>
+      </ul></div>
+  </div>
+</section>
+
+<!-- 22 · Guion de la demo -->
+<section class="slide">
+  <div class="kicker">Demo en vivo</div>
+  <h2>Guion de la demo</h2>
+  <div class="grid2" style="gap:36px">
+    <div>
+      <div class="row"><span class="big-num cyan" style="font-size:54px;width:60px;flex:none">1</span><p><b>Generación 1:</b> el caos. 40 rutas aleatorias y un peor tiempo enorme.</p></div>
+      <div class="row"><span class="big-num magenta" style="font-size:54px;width:60px;flex:none">2</span><p><b>Tecla T (turbo):</b> la gráfica se desploma y la ruta dorada se estabiliza.</p></div>
+      <div class="row"><span class="big-num red" style="font-size:54px;width:60px;flex:none">3</span><p><b>Clic en la ruta:</b> accidente. La población se reorganiza y encuentra un desvío.</p></div>
+      <div class="row"><span class="big-num gold" style="font-size:54px;width:60px;flex:none">4</span><p><b>API:</b> forzar un semáforo a ROJO desde el panel web o el celular.</p></div>
+      <div class="row"><span class="big-num green" style="font-size:54px;width:60px;flex:none">5</span><p><b>Parámetros:</b> subir la mutación y ver crecer la diversidad.</p></div>
+    </div>
+    <div class="code" style="font-size:20px; align-self:start">uv run genetic --fullscreen
+
+# Panel web
+http://127.0.0.1:8000/
+
+# Accidente por API
+curl -X POST localhost:8000/api/accident \
+  -H "Content-Type: application/json" \
+  -d '{"origen":62,"destino":63,
+       "factor_trafico":12}'</div>
+  </div>
+</section>
+
+<!-- 23 · Cierre -->
+<section class="slide center">
+  <div class="kicker">Gracias</div>
+  <h1 style="font-size:76px">Las mejores soluciones<br><span class="grad">no se calculan: evolucionan.</span></h1>
+  <p class="lead" style="margin-top:28px">Población · Fitness · Selección · Cruce · Mutación</p>
+  <div class="foot"><span>GenRoute · Python · FastAPI · Pygame</span><span>¿Preguntas?</span></div>
+</section>
+
+</div></div>
+<div id="progress"></div><div id="counter"></div><div id="hint">← → navegar · F pantalla completa</div>
+<script>
+  // Hélice de ADN de la portada
+  (function(){
+    const g = document.getElementById('helix'); let s = '';
+    for (let i = 0; i < 18; i++) {
+      const x = 10 + i * 11.7, ph = i / 17 * Math.PI * 2.4;
+      const y1 = 55 + Math.sin(ph) * 32, y2 = 55 - Math.sin(ph) * 32, d = (Math.cos(ph) + 1) / 2;
+      if (i % 2 === 0) s += `<line x1="${x}" y1="${y1}" x2="${x}" y2="${y2}" stroke="#2c365c" stroke-width="2"/>`;
+      s += `<circle cx="${x}" cy="${y1}" r="${3 + 3 * d}" fill="#00d2ff" opacity="${.45 + .55 * d}"/>`;
+      s += `<circle cx="${x}" cy="${y2}" r="${3 + 3 * (1 - d)}" fill="#ff36c4" opacity="${.45 + .55 * (1 - d)}"/>`;
+    }
+    g.innerHTML = s;
+  })();
+
+  const slides = [...document.querySelectorAll('.slide')];
+  const stage = document.getElementById('stage');
+  let cur = 0;
+  function fit() {
+    const k = Math.min(innerWidth / 1600, innerHeight / 900);
+    stage.style.transform = `scale(${k})`;
+  }
+  function show(n) {
+    cur = Math.max(0, Math.min(slides.length - 1, n));
+    slides.forEach((s, i) => s.classList.toggle('active', i === cur));
+    document.getElementById('counter').textContent = `${cur + 1} / ${slides.length}`;
+    document.getElementById('progress').style.width = `${(cur + 1) / slides.length * 100}%`;
+    history.replaceState(null, '', '#' + (cur + 1));
+  }
+  addEventListener('keydown', e => {
+    if (['ArrowRight', 'PageDown', ' ', 'Enter'].includes(e.key)) { e.preventDefault(); show(cur + 1); }
+    else if (['ArrowLeft', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); show(cur - 1); }
+    else if (e.key === 'Home') show(0);
+    else if (e.key === 'End') show(slides.length - 1);
+    else if (e.key === 'f' || e.key === 'F') {
+      document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+    }
+  });
+  addEventListener('click', e => { if (e.target.closest('a')) return; show(cur + (e.clientX > innerWidth / 3 ? 1 : -1)); });
+  addEventListener('resize', fit);
+  fit();
+  show((parseInt(location.hash.slice(1)) || 1) - 1);
+</script>
+</body>
+</html>
